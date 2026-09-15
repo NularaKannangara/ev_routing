@@ -33,7 +33,10 @@ def load_graph():
                 u = int(parts[1])
                 v = int(parts[2])
                 dist = int(parts[3])
-                energy = int(parts[4])
+                time = int(parts[4])
+                energy = int(parts[5])
+
+                edge_list.append((u, v, dist, time, energy))
 
                 assert dist >= 0, f"Negative distance on edge {u} -> {v}"
 
@@ -44,9 +47,9 @@ def load_graph():
         v, dist, energy = edge[1:]
         
         if u in adj_list:
-            adj_list[u].append((v, dist, energy))
+            adj_list[u].append((v, dist, time, energy))
         else:
-            adj_list[u] = [(v, dist, energy)]
+            adj_list[u] = [(v, dist, time, energy)]
 
     assert len(nodes) == expected_node_count, f"Number of nodes {len(nodes)} does not match expected number {expected_node_count}"
     assert len(edge_list) == expected_edge_count, f"Number of edges {len(edge_list)} does not match expected number {expected_edge_count}"
