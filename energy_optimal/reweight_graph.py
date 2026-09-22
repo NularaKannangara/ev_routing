@@ -5,17 +5,19 @@ def reweight(nodes, adj_list, total_mass, g=9.81):
         reweighted_graph[u] = []
         elevation_u = nodes[u][2]
 
-        for v,dist,energy in edges:
+        for v, dist, time, energy in edges:
             elevation_v = nodes[v][2]
 
             delta_elevation = elevation_v - elevation_u
-            gpe_joules = total_mass*g*delta_elevation
+            gpe_joules = total_mass * g * delta_elevation
             gpe_wh = gpe_joules / 3600
 
             reduced_energy = energy - gpe_wh
 
-            reweighted_graph[u].append((v,dist,energy,reduced_energy))
-    
+            reweighted_graph[u].append(
+                (v, dist, time, energy, reduced_energy)
+            )
+
     return reweighted_graph
 
 if __name__ == '__main__':

@@ -1,13 +1,17 @@
 from pathlib import Path
 
+from pathlib import Path
+
+
 def load_graph():
     nodes = {}
     edge_list = []
     adj_list = {}
-    expected_node_count = 0
-    expected_edge_count =0
 
-    data_path = Path(__file__).parent / "data" / "USA_BAY_ROAD_with_energy.xy"
+    expected_node_count = 0
+    expected_edge_count = 0
+
+    data_path = Path(__file__).parent.parent / "data" / "USA_BAY_ROAD_with_energy.xy"
 
     with open(data_path, "r") as file:
         for line in file:
@@ -36,26 +40,26 @@ def load_graph():
                 time = int(parts[4])
                 energy = int(parts[5])
 
-                edge_list.append((u, v, dist, time, energy))
-
                 assert dist >= 0, f"Negative distance on edge {u} -> {v}"
 
-                edge_list.append((u, v, dist, energy))
+                edge_list.append((u, v, dist, time, energy))
 
-    for edge in edge_list:
-        u = edge[0]
-        v, dist, energy = edge[1:]
-        
-        if u in adj_list:
-            adj_list[u].append((v, dist, time, energy))
-        else:
-            adj_list[u] = [(v, dist, time, energy)]
+                if u not in adj_list:
+                    adj_list[u] = []
 
-    assert len(nodes) == expected_node_count, f"Number of nodes {len(nodes)} does not match expected number {expected_node_count}"
-    assert len(edge_list) == expected_edge_count, f"Number of edges {len(edge_list)} does not match expected number {expected_edge_count}"
+                adj_list[u].append((v, dist, time, energy))
 
-    for edge in edge_list:
-        u, v = edge[0], edge[1]
+    assert len(nodes) == expected_node_count, (
+        f"Number of nodes {len(nodes)} does not match "
+        f"expected number {expected_node_count}"
+    )
+
+    assert len(edge_list) == expected_edge_count, (
+        f"Number of edges {len(edge_list)} does not match "
+        f"expected number {expected_edge_count}"
+    )
+
+    for u, v, _, _, _ in edge_list:
         assert u in nodes, f"Source node {u} does not exist"
         assert v in nodes, f"Destination node {v} does not exist"
 

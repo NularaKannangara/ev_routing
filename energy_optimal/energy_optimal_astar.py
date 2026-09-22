@@ -23,26 +23,25 @@ def astar(
     battery[s] = initial_battery
 
     pq = []
-    expanded = set()
 
     start_h = heuristic(nodes, s, destination, lambda_value)
 
     heapq.heappush(pq, (start_h, 0, s))
 
+    expanded_count = 0
+
     while pq:
         _, current_cost, u = heapq.heappop(pq)
 
-        if current_cost != reduced_cost[u]:
+        if current_cost > reduced_cost[u]:
             continue
-
-        if u in expanded:
-            continue
-        expanded.add(u)
+        
+        expanded_count += 1
 
         if u == destination:
             break
 
-        for v, _, original_energy, reduced_energy in adj_list.get(u, []):
+        for v, _, _, original_energy, reduced_energy in adj_list.get(u, []):
             energy_spent = original_energy
 
             new_battery = battery[u] - original_energy
@@ -66,25 +65,22 @@ def astar(
             if new_cost < reduced_cost[v]:
                 reduced_cost[v] = new_cost
                 battery[v] = new_battery
-                pred[v] = u
+                pred[v] = (u, energy_spent)
 
                 h = heuristic(nodes, v, destination, lambda_value)
-
-                if new_battery < h:
-                    continue
 
                 priority = new_cost + h
 
                 heapq.heappush(pq, (priority, new_cost, v))
 
-    return reduced_cost, battery, pred
+    return reduced_cost, battery, pred, expanded_count
 
 
 def calculate_lambda(adj_list, eta_e=14.1):
     lambda_value = inf
 
     for u, edges in adj_list.items():
-        for v, dist, _, reduced_energy in edges:
+        for v, dist, _, _, reduced_energy in edges:
             distance_m = dist / 10
 
             if distance_m > 0:
@@ -132,8 +128,17 @@ if __name__ == "__main__":
 
     graph = {0: [(1, 10, 20, 20), (2, 10, 40, 40)], 1: [(2, 10, 10, 10)], 2: []}
 
+    lambda_value = calculate_lambda(graph)
+
     reduced_cost, battery, pred = astar(
-        nodes, graph, battery_capacity=100, initial_battery=100, total_mass=1000, s=0
+        nodes,
+        graph,
+        battery_capacity=100,
+        initial_battery=100,
+        total_mass=1000,
+        s=0,
+        destination=2,
+        lambda_value=lambda_value,
     )
 
     print("Reduced cost:", reduced_cost)

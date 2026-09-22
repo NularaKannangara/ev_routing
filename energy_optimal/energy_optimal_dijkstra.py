@@ -12,36 +12,49 @@ def dijkstra(nodes, adj_list, battery_capacity, initial_battery, total_mass, s, 
     pq = []
     heapq.heappush(pq, (0,s))
 
+    expanded_count = 0
+    
     while len(pq) > 0:
         key, u = heapq.heappop(pq)
-        if reduced_cost[u] == key:
-            if u == destination:
-                break
 
-            for v, _, original_energy, reduced_energy in adj_list[u]:
-                energy_spent = original_energy
-                
-                new_battery = battery[u] - original_energy
-                if new_battery < 0: 
-                    continue
-                if new_battery > battery_capacity:
-                    energy_spent = battery[u] - battery_capacity
-                    new_battery = battery_capacity
-                    
-                    delta_elevation = nodes[v][2] - nodes[u][2]
-                    gpe_joules = total_mass*g*delta_elevation
-                    gpe_wh = gpe_joules / 3600
+        if key > reduced_cost[u]:
+            continue
 
-                    reduced_energy = energy_spent - gpe_wh
+        expanded_count += 1
 
+        if u == destination:
+            break
 
-                if reduced_cost[v] > reduced_cost[u] + reduced_energy:
-                    reduced_cost[v] = reduced_cost[u] + reduced_energy
-                    battery[v] = new_battery
-                    pred[v] = u
-                    heapq.heappush(pq, (reduced_cost[v],v))
+        for v, _, _, original_energy, reduced_energy in adj_list.get(u, []):
+            energy_spent = original_energy
 
-    return reduced_cost, battery, pred
+            new_battery = battery[u] - original_energy
+
+            if new_battery < 0:
+                continue
+
+            if new_battery > battery_capacity:
+                energy_spent = battery[u] - battery_capacity
+                new_battery = battery_capacity
+
+                delta_elevation = nodes[v][2] - nodes[u][2]
+
+                gpe_joules = total_mass * g * delta_elevation
+                gpe_wh = gpe_joules / 3600
+
+                reduced_energy = energy_spent - gpe_wh
+
+            if reduced_cost[v] > reduced_cost[u] + reduced_energy:
+                reduced_cost[v] = reduced_cost[u] + reduced_energy
+                battery[v] = new_battery
+                pred[v] = (u, energy_spent)
+
+                heapq.heappush(
+                    pq,
+                    (reduced_cost[v], v)
+                )
+
+    return reduced_cost, battery, pred, expanded_count
 
 if __name__ == '__main__':
     nodes = {
