@@ -3,11 +3,7 @@ from math import inf
 
 
 def bicriteria_dijkstra(
-    adj_list,
-    source,
-    destination,
-    battery_capacity,
-    initial_battery,
+    adj_list, source, destination, battery_capacity, initial_battery
 ):
     labels = {node: [] for node in adj_list}
     labels[source] = [(0, initial_battery)]
