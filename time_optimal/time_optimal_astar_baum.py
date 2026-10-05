@@ -1,5 +1,4 @@
 import heapq
-from collections import deque
 from math import inf
 
 
@@ -16,11 +15,31 @@ def build_reverse_graph(adj_list):
     return reverse_adj
 
 
+def build_reverse_reweighted_graph(adj_list, nodes, total_mass, g=9.81):
+    reverse_adj = {node: [] for node in adj_list}
+
+    for u, edges in adj_list.items():
+        elevation_u = nodes[u][2]
+        p_u = total_mass * g * elevation_u / 3600
+
+        for v, distance, edge_time, edge_energy in edges:
+            elevation_v = nodes[v][2]
+            p_v = total_mass * g * elevation_v / 3600
+
+            reduced_energy = edge_energy + p_u - p_v
+
+            if v not in reverse_adj:
+                reverse_adj[v] = []
+
+            reverse_adj[v].append((u, distance, edge_time, edge_energy, reduced_energy))
+
+    return reverse_adj
+
+
 def compute_time_heuristic(reverse_adj, destination):
     """
-    Computes h_T(v) = minimum travel time from v to destination ignoring battery constraints
-
-    Run Dijkstra from destination on the reversed graph.
+    Computes h_T(v) = minimum travel time from v to destination
+    ignoring battery constraints.
     """
 
     h_time = {node: inf for node in reverse_adj}
@@ -44,45 +63,73 @@ def compute_time_heuristic(reverse_adj, destination):
     return h_time
 
 
-def compute_energy_lower_bound(reverse_adj, destination):
+def compute_energy_lower_bound(
+    reverse_reweighted_adj, destination, nodes, total_mass, g=9.81
+):
     """
-    Compute minimum net-energy distances to the destination.
-
-    Negative energy edges are allowed, so vertices are not
-    permanently settled as in Dijkstra. Whenever a vertex's energy label improves, it is placed
-    back into the queue so its outgoing edges can be relaxed again.
+    Computes minimum net-energy cost to the destination using
+    non-negative reduced energy costs and Dijkstra.
     """
 
-    h_energy = {node: inf for node in reverse_adj}
-    h_energy[destination] = 0
+    reduced_dist = {node: inf for node in reverse_reweighted_adj}
+    reduced_dist[destination] = 0
 
-    queue = deque([destination])
-    in_queue = {destination}
+    pq = [(0, destination)]
 
-    while queue:
-        u = queue.popleft()
-        in_queue.remove(u)
+    while pq:
+        dist_u, u = heapq.heappop(pq)
 
-        for v, _, _, edge_energy in reverse_adj[u]:
+        if dist_u != reduced_dist[u]:
+            continue
 
-            new_energy = h_energy[u] + edge_energy
+        for v, _, _, _, reduced_energy in reverse_reweighted_adj[u]:
+            if reduced_energy < -1e-10:
+                raise ValueError(
+                    f"Negative reduced energy on edge {u} -> {v}: {reduced_energy}"
+                )
 
-            if new_energy < h_energy[v]:
-                h_energy[v] = new_energy
+            reduced_energy = max(0.0, reduced_energy)
+            new_dist = dist_u + reduced_energy
 
-                if v not in in_queue:
-                    queue.append(v)
-                    in_queue.add(v)
+            if new_dist < reduced_dist[v]:
+                reduced_dist[v] = new_dist
+                heapq.heappush(pq, (new_dist, v))
+
+    def potential(v):
+        elevation = nodes[v][2]
+        return total_mass * g * elevation / 3600
+
+    p_destination = potential(destination)
+
+    h_energy = {}
+
+    for v, dist in reduced_dist.items():
+        if dist == inf:
+            h_energy[v] = inf
+        else:
+            h_energy[v] = dist - potential(v) + p_destination
 
     return h_energy
 
 
 def bicriteria_baum_astar(
-    adj_list, source, destination, battery_capacity, initial_battery
+    adj_list,
+    nodes,
+    source,
+    destination,
+    battery_capacity,
+    initial_battery,
+    total_mass,
 ):
-    reverse_adj = build_reverse_graph(adj_list) 
+    reverse_adj = build_reverse_graph(adj_list)
+
+    reverse_reweighted_adj = build_reverse_reweighted_graph(adj_list, nodes, total_mass)
+
     h_time = compute_time_heuristic(reverse_adj, destination)
-    h_energy = compute_energy_lower_bound(reverse_adj, destination)
+
+    h_energy = compute_energy_lower_bound(
+        reverse_reweighted_adj, destination, nodes, total_mass
+    )
 
     if h_time.get(source, inf) == inf:
         return inf, None, {}, None, 0
@@ -93,9 +140,7 @@ def bicriteria_baum_astar(
     # Queue: (A* priority, time_taken, vertex, remaining_battery)
     pq = [(h_time[source], 0, source, initial_battery)]
 
-    pred = {}
-    pred[(source, 0, initial_battery)] = None
-
+    pred = {(source, 0, initial_battery): None}
     expanded_count = 0
 
     while pq:
@@ -119,16 +164,12 @@ def bicriteria_baum_astar(
             )
 
         for v, _, edge_time, edge_energy in adj_list.get(u, []):
-
             new_remaining_battery = remaining_battery - edge_energy
 
             if new_remaining_battery < 0:
                 continue
 
-            new_remaining_battery = min(
-                battery_capacity,
-                new_remaining_battery,
-            )
+            new_remaining_battery = min(battery_capacity, new_remaining_battery)
 
             new_time_taken = time_taken + edge_time
 
@@ -139,7 +180,6 @@ def bicriteria_baum_astar(
             dominated_labels = []
 
             for existing_time, existing_battery in labels.get(v, []):
-
                 if (
                     existing_time <= new_time_taken
                     and existing_battery >= new_remaining_battery
@@ -169,14 +209,6 @@ def bicriteria_baum_astar(
 
             priority = new_time_taken + h_time.get(v, inf)
 
-            heapq.heappush(
-                pq,
-                (
-                    priority,
-                    new_time_taken,
-                    v,
-                    new_remaining_battery,
-                ),
-            )
+            heapq.heappush(pq, (priority, new_time_taken, v, new_remaining_battery))
 
     return inf, None, pred, None, expanded_count
